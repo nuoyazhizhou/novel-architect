@@ -1,0 +1,119 @@
+{
+  "name": "novel-architect",
+  "version": "1.0.0",
+  "description": "A write-review-correct-verify workshop for the Starfire historical time-travel novel: a lead editor orchestrates plot, protocolology sentinel, timeline auditor and prose editor into one gated chain, preventing history-gravity drift, canon amnesia and AI-flavored prose.",
+  "author": {
+    "name": "wanpi",
+    "email": "wanpi@local"
+  },
+  "agents": [
+    "./agents/dispatcher.md",
+    "./agents/plot-architect.md",
+    "./agents/protocol-sentinel.md",
+    "./agents/timeline-auditor.md",
+    "./agents/prose-rhetoric.md"
+  ],
+  "skills": [
+    "./skills/sp-novel-engine"
+  ],
+  "expertType": "team",
+  "agentName": "novel-architect-dispatcher",
+  "teamInfo": {
+    "leadAgent": "novel-architect-dispatcher",
+    "memberAgents": [
+      "novel-plot-architect",
+      "novel-protocol-sentinel",
+      "novel-timeline-auditor",
+      "novel-prose-rhetoric"
+    ]
+  },
+  "displayName": {
+    "en": "Starfire Novel Architect",
+    "zh": "星火小说架构师"
+  },
+  "profession": {
+    "en": "Starfire Novel Write-Review-Correct-Verify Team",
+    "zh": "星火小说写审纠核工坊"
+  },
+  "displayDescription": {
+    "en": "Five-role workshop: plot, protocolology guard, timeline causality and prose quality, gated by sp-novel-engine.",
+    "zh": "五人工坊：情节、协议学哨兵、时间线因果、文笔质检，sp-novel-engine 过闸。"
+  },
+  "avatar": "avatars/team.png",
+  "categoryId": "12-IndustryConsultant",
+  "defaultInitPrompt": {
+    "zh": "按《星火》大纲推进下一章：先做时间线与协议学预审，再出章节细纲与正文，最后跑 Check-1..10 门禁。",
+    "en": "Advance the next chapter of Starfire from its outline: pre-check timeline and protocolology, draft the beat sheet and prose, then run the Check-1..10 gate."
+  },
+  "plugin": "novel-architect",
+  "tags": [
+    {
+      "en": "Novel Architecture",
+      "zh": "长篇小说架构"
+    },
+    {
+      "en": "Canon Continuity",
+      "zh": "正典与因果连续性"
+    },
+    {
+      "en": "Prose Quality Gate",
+      "zh": "文笔质检门禁"
+    }
+  ],
+  "quickPrompts": [
+    {
+      "zh": "按《星火》大纲推进下一章：先做时间线与协议学预审，再出章节细纲与正文，最后跑 Check-1..10 门禁。",
+      "en": "Advance the next chapter of Starfire from its outline: pre-check timeline and protocolology, draft the beat sheet and prose, then run the Check-1..10 gate."
+    },
+    {
+      "zh": "用哨兵视角审这一章：林枫有没有沦为历史旁观者、先知剧透日期或滑向军阀文？给出阻断理由。",
+      "en": "Review this chapter as the protocolology sentinel: has Lin Feng become a bystander, spoiled historical dates, or drifted into warlord fiction? Give blocking reasons."
+    },
+    {
+      "zh": "按司历规则核这段蝴蝶效应：历史 NPC 有没有按原剧本梦游，人物弧光是否连续？",
+      "en": "Audit this butterfly-effect segment as the timeline auditor: are historical NPCs sleepwalking the real script, and are character arcs continuous?"
+    }
+  ],
+  "members": [
+    {
+      "id": "novel-architect-dispatcher",
+      "name": { "en": "Mo", "zh": "总调度" },
+      "displayName": { "en": "Mo", "zh": "总调度" },
+      "profession": { "en": "Starfire Novel Chief Editor", "zh": "星火小说总编辑" },
+      "avatar": "avatars/novel-architect-dispatcher.png",
+      "role": "lead"
+    },
+    {
+      "id": "novel-plot-architect",
+      "name": { "en": "Tian", "zh": "天工" },
+      "displayName": { "en": "Tian", "zh": "天工" },
+      "profession": { "en": "Plot Architect & Dramatist", "zh": "剧情主笔·戏剧家" },
+      "avatar": "avatars/novel-plot-architect.png",
+      "role": "member"
+    },
+    {
+      "id": "novel-protocol-sentinel",
+      "name": { "en": "Xian", "zh": "执宪" },
+      "displayName": { "en": "Xian", "zh": "执宪" },
+      "profession": { "en": "Protocolology Sentinel", "zh": "协议学哨兵·执宪" },
+      "avatar": "avatars/novel-protocol-sentinel.png",
+      "role": "member"
+    },
+    {
+      "id": "novel-timeline-auditor",
+      "name": { "en": "Li", "zh": "司历" },
+      "displayName": { "en": "Li", "zh": "司历" },
+      "profession": { "en": "Timeline & Causal Auditor", "zh": "时间线与因果审计" },
+      "avatar": "avatars/novel-timeline-auditor.png",
+      "role": "member"
+    },
+    {
+      "id": "novel-prose-rhetoric",
+      "name": { "en": "Rhet", "zh": "修辞" },
+      "displayName": { "en": "Rhet", "zh": "修辞" },
+      "profession": { "en": "Prose & Rhetoric Quality Editor", "zh": "文笔与修辞质检" },
+      "avatar": "avatars/novel-prose-rhetoric.png",
+      "role": "member"
+    }
+  ]
+}
