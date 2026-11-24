@@ -264,6 +264,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="挂载星火小说架构师专家包到 WorkBuddy，或只检漂移")
     parser.add_argument("--check", action="store_true", help="只比对不落盘（默认行为）")
     parser.add_argument("--apply", action="store_true", help="写入落点")
+    parser.add_argument(
+        "--check-source",
+        action="store_true",
+        help="只校验仓内包可挂载（不依赖宿主落点，CI 用）",
+    )
     parser.add_argument("--json", action="store_true", help="输出 JSON（CI 解析用）")
     try:
         args = parser.parse_args(argv)
@@ -271,10 +276,15 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_OK if not exc.code else EXIT_USAGE
 
     try:
-        expert_plan()  # 前置校验：元数据/头像不合规时不碰落点
+        plan = expert_plan()  # 前置校验：元数据/头像不合规时不碰落点
     except (OSError, ValueError, FileNotFoundError) as exc:
         print(f"失败：{exc}", file=sys.stderr)
         return EXIT_VIOLATION
+
+    if args.check_source:
+        # CI 没有 ~/.workbuddy 落点；只验证仓内包自身完整（含头像规格与 team 元数据）。
+        print(f"SOURCE OK {EXPERT_NAME:<40} files={len(plan)}")
+        return EXIT_OK
 
     results = []
     drifted = 0
