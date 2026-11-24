@@ -225,6 +225,103 @@ def test_walk_does_not_follow_links(repo, monkeypatch):
     assert "skills/sp-novel-engine/SKILL.md" not in rels
 
 
+def test_registry_missing_is_detected_and_repaired(repo, monkeypatch):
+    """注册表缺本团条目 → check 报漂移，apply 补回；其他包条目不动。"""
+    reg = repo / "registry.json"
+    monkeypatch.setattr(mount, "MARKET_JSON", reg)
+    reg.write_text(
+        json.dumps(
+            {
+                "name": "my-experts",
+                "plugins": [
+                    {
+                        "name": "other-team",
+                        "source": "./plugins/other-team",
+                        "version": "2.0.0",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    plugin = mount.read_plugin(repo)
+    problems = mount.registry_problems(plugin, reg, repo)
+    assert any("缺" in p for p in problems)
+
+    assert mount.registry_apply(plugin, reg, repo) is True
+    assert mount.registry_problems(plugin, reg, repo) == []
+    data = json.loads(reg.read_text(encoding="utf-8"))
+    assert {p["name"] for p in data["plugins"]} == {"other-team", "novel-architect"}
+    # 幂等：再 apply 一次不产生写入
+    assert mount.registry_apply(plugin, reg, repo) is False
+
+
+def test_registry_version_drift_repaired(repo, monkeypatch):
+    """注册表 version 落后于 plugin.json 时纠偏，不覆盖已有 description。"""
+    reg = repo / "registry.json"
+    monkeypatch.setattr(mount, "MARKET_JSON", reg)
+    reg.write_text(
+        json.dumps(
+            {
+                "plugins": [
+                    {
+                        "name": "novel-architect",
+                        "source": "./plugins/novel-architect",
+                        "description": "人工维护的文案",
+                        "version": "0.9.0",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    plugin = mount.read_plugin(repo)
+    assert any("version" in p for p in mount.registry_problems(plugin, reg, repo))
+    mount.registry_apply(plugin, reg, repo)
+    entry = json.loads(reg.read_text(encoding="utf-8"))["plugins"][0]
+    assert entry["version"] == "1.2.3"
+    assert entry["description"] == "人工维护的文案"
+
+
+def test_orphaned_at_is_runtime_noise_not_drift(repo):
+    """应用写的 .orphaned_at 是运行时标记，不能报多余，也不能被 apply 删。"""
+    plan = mount.expert_plan(repo)
+    dest = repo / "dest"
+    mount.apply(plan, dest)
+    (dest / ".orphaned_at").write_text("1795506906585", encoding="utf-8")
+    assert mount.diff(plan, dest) == []
+    mount.apply(plan, dest)
+    assert (dest / ".orphaned_at").is_file()
+
+
+def test_heal_restores_only_settings(repo):
+    """settings 被删/改后只补它，不碰其他文件的应用侧改动。"""
+    plan = mount.expert_plan(repo)
+    dest = repo / "dest"
+    mount.apply(plan, dest)
+    (dest / "settings.json").unlink()
+    (dest / "README.md").write_text("应用改写的内容", encoding="utf-8")
+
+    assert mount.heal_settings(plan, dest) is not None
+    assert (dest / "settings.json").is_file()
+    assert mount.heal_settings(plan, dest) is None  # 幂等
+    # heal 只管 settings，不动 README
+    assert (dest / "README.md").read_text(encoding="utf-8") == "应用改写的内容"
+
+
+def test_heal_cli_restores_registry_and_settings(repo, monkeypatch):
+    reg = repo / "registry.json"
+    monkeypatch.setattr(mount, "MARKET_JSON", reg)
+    reg.write_text(json.dumps({"plugins": []}), encoding="utf-8")
+    mount.main(["--apply"])  # 先铺好两个落点
+    (repo / "market" / "novel-architect" / "settings.json").unlink()
+    reg.write_text(json.dumps({"plugins": []}), encoding="utf-8")
+
+    assert mount.main(["--heal"]) == mount.EXIT_OK
+    assert (repo / "market" / "novel-architect" / "settings.json").is_file()
+    assert mount.registry_problems(mount.read_plugin(repo), reg, repo) == []
+
+
 def test_usage_error_returns_64(repo):
     assert mount.main(["--nope"]) == mount.EXIT_USAGE
 

@@ -29,8 +29,10 @@ EXIT_USAGE = 64
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WB_HOME = Path.home() / ".workbuddy"
-WB_MARKET = WB_HOME / "plugins" / "marketplaces" / "my-experts" / "plugins"
+WB_MARKET_ROOT = WB_HOME / "plugins" / "marketplaces" / "my-experts"
+WB_MARKET = WB_MARKET_ROOT / "plugins"
 WB_CACHE = WB_HOME / "plugins" / "cache" / "my-experts"
+MARKET_JSON = WB_MARKET_ROOT / ".codebuddy-plugin" / "marketplace.json"
 
 EXPERT_NAME = "novel-architect"
 PLUGIN_REL = ".codebuddy-plugin/plugin.json"
@@ -39,6 +41,9 @@ INCLUDE = (".codebuddy-plugin", "agents", "skills", "avatars")
 EXTRA_FILES = ("README.md", "settings.json")
 SKIP_DIRS = frozenset({"__pycache__", ".in_use"})
 SKIP_SUFFIXES = frozenset({".pyc", ".pyo"})
+# 应用自己写的运行时标记：不是包内容，既不能报「多余」，也不能被 --apply 删掉，
+# 否则应用下次刷新又会重建，制造永远清不掉的 DRIFT。
+SKIP_NAMES = frozenset({".orphaned_at"})
 AVATAR_SIZE = (512, 512)
 AVATAR_MAX_BYTES = 500 * 1024
 
@@ -48,7 +53,11 @@ def sha256(path: Path) -> str:
 
 
 def _ignored(rel: Path) -> bool:
-    return bool(set(rel.parts) & SKIP_DIRS) or rel.suffix in SKIP_SUFFIXES
+    return (
+        bool(set(rel.parts) & SKIP_DIRS)
+        or rel.suffix in SKIP_SUFFIXES
+        or rel.name in SKIP_NAMES
+    )
 
 
 def _is_link(path: Path) -> bool:
@@ -175,6 +184,104 @@ def expert_version(root: Path | None = None) -> str:
         return ""
 
 
+def read_registry(path: Path | None = None) -> dict:
+    path = path or MARKET_JSON
+    return json.loads(path.read_text(encoding="utf-8-sig"))
+
+
+def registry_problems(
+    plugin: dict, path: Path | None = None, root: Path | None = None
+) -> list[str]:
+    """检查 marketplace.json 是否登记本包。
+
+    应用会周期性重写这份注册表（它自称 auto-generated），把不在它视野里的包
+    标成孤儿并清掉注册项。只写落点不查注册表，专家中心照样看不到本团。
+    """
+    path = path or MARKET_JSON
+    if not path.is_file():
+        return [f"注册表不存在 {path}"]
+    try:
+        data = read_registry(path)
+    except (OSError, ValueError) as exc:
+        return [f"注册表不是合法 JSON：{exc}"]
+    plugins = data.get("plugins")
+    if not isinstance(plugins, list):
+        return ["注册表缺 plugins 数组"]
+
+    entry = next(
+        (p for p in plugins if isinstance(p, dict) and p.get("name") == EXPERT_NAME),
+        None,
+    )
+    if entry is None:
+        return [f"注册表缺 {EXPERT_NAME} 条目（专家中心看不到本团）"]
+
+    problems: list[str] = []
+    want_source = f"./plugins/{EXPERT_NAME}"
+    if str(entry.get("source") or "") != want_source:
+        problems.append(f"注册表 source={entry.get('source')!r}，应为 {want_source!r}")
+    version = str(plugin.get("version") or expert_version(root))
+    if version and str(entry.get("version") or "") != version:
+        problems.append(f"注册表 version={entry.get('version')!r}，应为 {version!r}")
+    return problems
+
+
+def registry_apply(plugin: dict, path: Path | None = None, root: Path | None = None) -> bool:
+    """幂等补回/修正注册表条目；其他包条目一律不动。返回是否发生写入。"""
+    path = path or MARKET_JSON
+    if path.is_file():
+        data = read_registry(path)
+    else:
+        data = {}
+    plugins = data.get("plugins")
+    if not isinstance(plugins, list):
+        plugins = []
+        data["plugins"] = plugins
+
+    version = str(plugin.get("version") or expert_version(root))
+    want = {
+        "name": EXPERT_NAME,
+        "source": f"./plugins/{EXPERT_NAME}",
+        "description": str(plugin.get("displayDescription") or plugin.get("description") or ""),
+        "version": version,
+    }
+    entry = next(
+        (p for p in plugins if isinstance(p, dict) and p.get("name") == EXPERT_NAME),
+        None,
+    )
+    if entry is None:
+        plugins.append(want)
+    else:
+        for key, value in want.items():
+            if key == "description":
+                continue  # 不覆盖已有文案，只补关键的 name/source/version
+            if str(entry.get(key) or "") != value:
+                entry[key] = value
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+    if path.is_file() and path.read_text(encoding="utf-8-sig") == text:
+        return False
+    path.write_text(text, encoding="utf-8")
+    return True
+
+
+def heal_settings(plan: dict[str, Path], dest: Path) -> str | None:
+    """只复原被应用清掉的 settings.json；其他文件一律不碰。
+
+    与 ``apply`` 的区别：apply 是全量对齐（会删落点里应用写入的运行时数据），
+    heal 只补 team 型的必需配置，适合在专家中心刷新后反复跑。
+    """
+    src = plan.get("settings.json")
+    if src is None:
+        return None
+    target = dest / "settings.json"
+    if target.is_file() and sha256(target) == sha256(src):
+        return None
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, target)
+    return str(target)
+
+
 def _strip_links(dest: Path) -> list[str]:
     """先断链再铺文件：往 Junction 里写等于改源，清理更会从源里删文件。"""
     if not dest.is_dir():
@@ -263,7 +370,12 @@ def targets(root: Path | None = None) -> list[tuple[str, Path, dict[str, Path]]]
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="挂载星火小说架构师专家包到 WorkBuddy，或只检漂移")
     parser.add_argument("--check", action="store_true", help="只比对不落盘（默认行为）")
-    parser.add_argument("--apply", action="store_true", help="写入落点")
+    parser.add_argument("--apply", action="store_true", help="写入落点（含注册表）")
+    parser.add_argument(
+        "--heal",
+        action="store_true",
+        help="轻量自愈：只补被删的 settings.json 与注册表条目，不动其他文件",
+    )
     parser.add_argument(
         "--check-source",
         action="store_true",
@@ -286,6 +398,25 @@ def main(argv: list[str] | None = None) -> int:
         print(f"SOURCE OK {EXPERT_NAME:<40} files={len(plan)}")
         return EXIT_OK
 
+    plugin = read_plugin()
+    reg_problems = registry_problems(plugin)
+    reg_label = "workbuddy-registry/novel-architect"
+
+    if args.heal:
+        healed: list[str] = []
+        for _, dest, target_plan in targets():
+            restored = heal_settings(target_plan, dest)
+            if restored:
+                healed.append(restored)
+        if reg_problems:
+            registry_apply(plugin)
+            healed.append(str(MARKET_JSON))
+        for item in healed:
+            print(f"HEAL {item}")
+        if not healed:
+            print("HEAL 无需修复：settings.json 与注册表均正常")
+        return EXIT_OK
+
     results = []
     drifted = 0
     for label, dest, target_plan in targets():
@@ -299,6 +430,20 @@ def main(argv: list[str] | None = None) -> int:
             print(f"APPLY {label:<44} files={written}")
             for rel in stripped:
                 print(f"       已剥离链接 {rel}（防写穿源仓）", file=sys.stderr)
+    results.append(
+        {
+            "target": reg_label,
+            "path": str(MARKET_JSON),
+            "files": 1,
+            "ok": not reg_problems,
+            "problems": reg_problems,
+        }
+    )
+    drifted += bool(reg_problems)
+
+    if args.apply and reg_problems:
+        registry_apply(plugin)
+        print(f"APPLY {reg_label:<44} 已补回注册项")
 
     if args.json:
         print(json.dumps({"ok": not drifted, "targets": results}, ensure_ascii=False, indent=2))
@@ -310,10 +455,13 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"       - {r['target']}: {p}", file=sys.stderr)
 
     if args.apply:
-        print(f"\n挂载完成：{len(results)} 个落点 → {WB_HOME}")
+        print(f"\n挂载完成：{len(results) - 1} 个落点 + 注册表 → {WB_HOME}")
         return EXIT_OK
     if drifted:
-        print(f"\n{drifted} 个落点与仓库不一致；跑 --apply 同步。", file=sys.stderr)
+        print(
+            f"\n{drifted} 处与仓库不一致；全量同步跑 --apply，只补被删配置跑 --heal。",
+            file=sys.stderr,
+        )
         return EXIT_VIOLATION
     return EXIT_OK
 

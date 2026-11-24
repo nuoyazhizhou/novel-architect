@@ -38,13 +38,22 @@
 不要手工拷贝，跑挂载工具：
 
 ```bash
-python tools/mount.py --check     # 只读比对，落点与仓不一致返 2
-python tools/mount.py --apply     # 写入 marketplaces + cache 两个落点
+python tools/mount.py --check     # 只读比对两个落点 + 注册表，不一致返 2
+python tools/mount.py --apply     # 全量写入两个落点，并补回注册表条目
+python tools/mount.py --heal      # 轻量自愈：只补被删的 settings.json 与注册项
 ```
 
 两处都必须写——应用实际加载的是 `~/.workbuddy/plugins/cache/my-experts/novel-architect/1.0.0/`，
-只写 `marketplaces/` 不生效（已实测）。挂载工具只搬包内容；`rules/`、`tools/`、`tests/`、`.git/`
-明确排除，避免把维护工具投进宿主。
+只写 `marketplaces/` 不生效（已实测）。`--check` 还会查 `marketplace.json`：这份注册表是应用
+auto-generated 的，会周期性重写并把不在视野里的包标成孤儿（落点出现 `.orphaned_at` 标记）、
+清掉注册项——**光有落点文件、注册项没了，专家中心照样看不到本团**。注册表条目丢失或版本落后
+都由 `--apply` / `--heal` 幂等补回，不动其他包的条目。`.orphaned_at` 是应用运行时标记，
+已明确排除在漂移检测之外，不会被误报或删除。
+
+**settings.json 会在应用刷新专家中心时被清掉**（team 型必需，缺了加载不了）。这是应用行为，
+改不了源头，所以提供 `--heal`：只补 settings.json 和注册表条目，**不碰落点里的其他文件**——
+全量 `--apply` 会删掉应用写进落点的运行时数据，`--heal` 不会。删除后跑一次即可，反复跑幂等。
+挂载工具只搬包内容；`rules/`、`tools/`、`tests/`、`.git/` 明确排除，避免把维护工具投进宿主。
 
 **头像**由 `tools/gen_avatars.py` 生成：512×512 PNG、单张 < 500KB、零外部模型依赖、可重跑。
 改配色后跑 `python tools/gen_avatars.py`，再 `--apply` 同步落点。
@@ -58,9 +67,10 @@ python tools/mount.py --apply     # 写入 marketplaces + cache 两个落点
 仓库自检：
 
 ```bash
-C:/Python314/python.exe -m pytest tests/ -q              # 15 例：包边界 / 元数据 / 头像 / 漂移 / 写穿防御
+C:/Python314/python.exe -m pytest tests/ -q              # 20 例：包边界 / 元数据 / 头像 / 漂移 / 写穿 / 注册表 / 自愈
 python tools/gen_avatars.py --check                      # 6 张头像规格
-python tools/mount.py --check                            # 两个落点与仓一致
+python tools/mount.py --check                            # 两个落点 + 注册表与仓一致
+python tools/mount.py --check-source                     # CI：只验仓内源，不依赖宿主落点
 ```
 
 ### 常用参数
