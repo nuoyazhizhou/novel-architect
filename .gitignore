@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.in_use/
+
+# 本仓运行时状态：《星火》章节台账与公理账本，随稿走、不入库
+.local/

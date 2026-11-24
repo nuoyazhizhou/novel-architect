@@ -1,0 +1,16 @@
+{
+  "name": "novel-architect",
+  "version": "0.1.0",
+  "displayName": "星火小说架构师 (novel-architect)",
+  "description": "为长篇历史穿越小说《星火》打造的写-审-纠-核闭环插件：总调度 + 主笔·天工 + 协议学哨兵 + 史官，配合 sp-novel-engine 规则集，防止林枫神隐/降智/滑向历史流水账或平庸军阀文。",
+  "agents": [
+    "novel-architect-dispatcher",
+    "novel-plot-architect",
+    "novel-protocol-sentinel",
+    "novel-timeline-auditor",
+    "novel-prose-rhetoric"
+  ],
+  "skills": ["sp-novel-engine"],
+  "knowledgeBase": "C:/git_work/大纲 (live files, referenced by absolute path — do NOT copy)",
+  "canonAnchor": "C:/git_work/大纲/.cursorrules"
+}
